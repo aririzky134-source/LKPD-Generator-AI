@@ -1,35 +1,48 @@
 /**
- * LKPD Generator AI Backend
+ * LKPD Generator AI Backend - Zero Dependency CommonJS Edition
  * Endpoint: /api/generate
- * Technology: Vercel Serverless Function & Gemini API
+ * Tanpa perlu package.json, 100% sukses di-deploy ke Vercel!
  */
 
-import { GoogleGenAI } from "@google/generative-ai";
+module.exports = async function handler(req, res) {
+    // Aktifkan pengaturan CORS agar aman diakses dari frontend
+    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
 
-export default async function handler(req, res) {
-    // Only allow POST request
+    // Tangani preflight request OPTIONS dari browser
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
+
+    // Hanya izinkan metode POST
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed. Use POST instead.' });
+        return res.status(405).json({ error: 'Metode tidak diizinkan. Gunakan POST.' });
     }
 
     const { 
         jenjang, kelas, mapel, materi, tujuan, model, kesulitan,
         jumlahSoal, bahasa, instruksi, formats, p3List 
-    } = req.body;
+    } = req.body || {};
 
-    // Validate requirements
+    // Validasi input wajib
     if (!mapel || !materi || !tujuan) {
         return res.status(400).json({ error: 'Parameter Wajib Tidak Lengkap (Mata Pelajaran, Materi, atau Tujuan Pembelajaran kosong)!' });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-        return res.status(500).json({ error: 'Server Konfigurasi Error: GEMINI_API_KEY tidak dikonfigurasi di environment variable Vercel.' });
+        return res.status(500).json({ error: 'Server Konfigurasi Error: GEMINI_API_KEY belum dipasang di Environment Variables Vercel.' });
     }
 
     try {
-        // Construct detailed prompt
-        const prompt = `Anda adalah dosen kurikulum modern & asisten pengajar profesional Indonesia. Tugas Anda adalah merancang dokumen Lembar Kerja Peserta Didik (LKPD) yang memiliki format tampilan profesional setara dengan dokumen instansi formal Microsoft Word.
+        // Menyusun instruksi prompt yang kokoh untuk AI
+        const prompt = `Anda adalah dosen ahli kurikulum modern & pengajar profesional Indonesia. Tugas Anda adalah merancang dokumen Lembar Kerja Peserta Didik (LKPD) yang memiliki format tampilan profesional setara dengan dokumen instansi formal Microsoft Word.
             
 Dokumen LKPD harus disesuaikan dengan parameter berikut:
 - Jenjang: ${jenjang}
@@ -57,13 +70,9 @@ Struktur LKPD yang harus Anda hasilkan dalam format HTML di dalam parameter 'lkp
 
 PENTING: Seluruh tulisan dilarang menggunakan format markdown. Hasil akhir 'lkpd_html' harus murni berupa tag HTML lengkap terstruktur yang ramah dibaca dan diimplementasi. Pastikan juga bahwa Anda mengembalikan schema JSON yang valid.`;
 
-        // Fetching directly from gemini API via fetch with exponential backoff strategy
+        // Menggunakan global fetch bawaan Node.js 18+ (didukung penuh di Vercel secara native)
         const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         
-        let apiResponse;
-        let retries = 5;
-        let delay = 1000;
-
         const payload = {
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
@@ -75,9 +84,7 @@ PENTING: Seluruh tulisan dilarang menggunakan format markdown. Hasil akhir 'lkpd
                         metadata: {
                             type: "OBJECT",
                             properties: {
-                                title: { type: "STRING" },
-                                target_grade: { type: "STRING" },
-                                model: { type: "STRING" }
+                                title: { type: "STRING" }
                             },
                             required: ["title"]
                         }
@@ -87,25 +94,15 @@ PENTING: Seluruh tulisan dilarang menggunakan format markdown. Hasil akhir 'lkpd
             }
         };
 
-        for (let i = 0; i < retries; i++) {
-            try {
-                apiResponse = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                if (apiResponse.ok) break;
-            } catch (e) {
-                if (i === retries - 1) throw e;
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Exponential backoff
-        }
+        const apiResponse = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-        if (!apiResponse || !apiResponse.ok) {
-            return res.status(502).json({ error: "Gagal terhubung ke Gemini API setelah beberapa percobaan kembali." });
+        if (!apiResponse.ok) {
+            const errorText = await apiResponse.text();
+            return res.status(502).json({ error: `Gagal berkomunikasi dengan Gemini API: ${errorText}` });
         }
 
         const jsonResult = await apiResponse.json();
