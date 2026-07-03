@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LKPD Generator AI - Buat Lembar Kerja Peserta Didik Profesional</title>
+    <!-- Google Fonts: Poppins & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Docx library for generating Microsoft Word documents in browser -->
+    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+    <!-- FileSaver.js to save the generated docx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Tailwind CSS for utility fallback/speed, styling is custom though -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#090909',
+                        darkCard: '#171717',
+                        primaryEmerald: '#059669',
+                        accentGreen: '#10B981',
+                        accentGreenHover: '#34D399',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bg-color: #090909;
+            --card-color: #171717;
+            --primary-emerald: #059669;
+            --accent-green: #10B981;
+            --accent-hover: #34D399;
+            --border-color: #262626;
+            --text-main: #f5f5f5;
+            --text-muted: #a3a3a3;
+        }
+
+        body {
+            font-family: 'Poppins', 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        .glassmorphism {
+            background: rgba(23, 23, 23, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .word-preview-container {
+            font-family: 'Inter', sans-serif;
+            color: #1a1a1a;
+            background-color: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            min-height: 297mm; /* A4 aspect */
+            width: 100%;
+            max-width: 210mm;
+            padding: 20mm 20mm 20mm 20mm;
+            margin: 0 auto;
+            border: 1px solid #e5e7eb;
+        }
+
+        .word-preview-container h1, .word-preview-container h2, .word-preview-container h3 {
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121212;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d2d2d;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-green);
+        }
+
+        /* Pulse animation for loading */
+        @keyframes customPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-custom-pulse {
+            animation: customPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+    <!-- HEADER / NAVIGATION -->
+    <header class="sticky top-0 z-40 w-full glassmorphism border-b border-neutral-800 px-6 py-4 transition-all duration-300">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="goToHome()">
+                <div class="bg-gradient-to-tr from-emerald-600 to-green-400 p-2.5 rounded-xl shadow-lg shadow-emerald-900/30">
+                    <i data-lucide="sparkles" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-neutral-100 to-neutral-400 bg-clip-text text-transparent">
+                        LKPD Generator <span class="text-accent-green font-extrabold">AI</span>
+                    </h1>
+                    <p class="text-[10px] text-neutral-400 tracking-wider uppercase font-medium">Kurikulum Merdeka Edition</p>
+                </div>
+            </div>
+
+            <!-- Navigation Actions -->
+            <div class="flex items-center gap-4">
+                <button id="nav-login-btn" onclick="openLoginModal()" class="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-sm font-semibold text-white rounded-xl border border-neutral-800 transition-all duration-300 flex items-center gap-2">
+                    <i data-lucide="log-in" class="w-4 h-4 text-emerald-400"></i> Masuk Aplikasi
+                </button>
+
+                <!-- User profile in Navbar when logged in -->
+                <div id="nav-user-profile" class="hidden flex items-center gap-3">
+                    <div class="text-right hidden md:block">
+                        <p id="user-display-name" class="text-sm font-semibold text-white">Nama Pengguna</p>
+                        <p id="user-display-email" class="text-xs text-neutral-400">user@email.com</p>
+                    </div>
+                    <button onclick="logout()" class="p-2.5 bg-red-950/40 hover:bg-red-900/50 text-red-400 hover:text-red-300 border border-red-900/30 rounded-xl transition-all" title="Keluar">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN APP SCREEN WRAPPER -->
+    <main class="flex-grow flex flex-col">
+        
+        <!-- ================= LANDING SECTION ================= -->
+        <section id="landing-section" class="flex-grow flex flex-col justify-center py-12 md:py-20 px-6 max-w-7xl mx-auto w-full transition-all duration-500">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                
+                <!-- Left text column -->
+                <div class="lg:col-span-7 space-y-8 text-center lg:text-left">
+                    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-950/50 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider mx-auto lg:mx-0">
+                        <i data-lucide="award" class="w-4 h-4"></i> Generasi Baru Media Pembelajaran
+                    </div>
+                    
+                    <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
+                        Buat LKPD Profesional <br>
+                        <span class="bg-gradient-to-r from-emerald-400 via-green-500 to-teal-400 bg-clip-text text-transparent">
+                            dalam Hitungan Menit
+                        </span> <br>
+                        menggunakan AI.
+                    </h1>
+                    
+                    <p class="text-base md:text-lg text-neutral-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+                        Solusi instan untuk Bapak/Ibu Guru. Rancang Lembar Kerja Peserta Didik (LKPD) interaktif, sistematis, dan sesuai Kurikulum Merdeka secara otomatis. Cukup masukkan materi & biarkan AI menyusunnya untuk Anda.
+                    </p>
+
+                    <!-- Features bullets -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 max-w-xl mx-auto lg:mx-0 text-left">
+                        <div class="flex items-start gap-3">
+                            <div class="p-1 bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 rounded-lg mt-0.5">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                            </div>
+                            <p class="text-sm font-medium text-neutral-300">Format Word (.docx) Rapi & Siap Cetak</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="p-1 bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 rounded-lg mt-0.5">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                            </div>
+                            <p class="text-sm font-medium text-neutral-300">Variasi Soal Lengkap (PG, Isian, Essay)</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="p-1 bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 rounded-lg mt-0.5">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                            </div>
+                            <p class="text-sm font-medium text-neutral-300">Sesuai Profil Pelajar Pancasila</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <div class="p-1 bg-emerald-900/40 border border-emerald-500/30 text-emerald-400 rounded-lg mt-0.5">
+                                <i data-lucide="check" class="w-4 h-4"></i>
+                            </div>
+                            <p class="text-sm font-medium text-neutral-300">Simpan Riwayat di Penyimpanan Lokal</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start pt-6">
+                        <button onclick="openLoginModal()" class="px-8 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-green-400 text-white font-semibold rounded-2xl shadow-xl shadow-emerald-900/30 hover:shadow-emerald-900/40 transform hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-3 group">
+                            Mulai Buat LKPD Sekarang <i data-lucide="arrow-right" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+                        </button>
+                        <a href="#preview-placeholder" class="px-8 py-4 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 font-semibold rounded-2xl border border-neutral-800 hover:border-neutral-700 transition-all flex items-center justify-center gap-2">
+                            Lihat Contoh Hasil
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Right image/visual column -->
+                <div class="lg:col-span-5 relative">
+                    <div class="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-green-500 rounded-3xl blur-2xl opacity-15"></div>
+                    <div id="preview-placeholder" class="relative glassmorphism rounded-3xl border border-neutral-800 p-6 shadow-2xl">
+                        <!-- Dashboard Mockup Header -->
+                        <div class="flex items-center justify-between border-b border-neutral-800 pb-4 mb-4">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-red-500/60"></span>
+                                <span class="w-3 h-3 rounded-full bg-yellow-500/60"></span>
+                                <span class="w-3 h-3 rounded-full bg-green-500/60"></span>
+                            </div>
+                            <span class="text-xs text-neutral-500 font-mono">lkpd-designer-pro.ai</span>
+                            <i data-lucide="maximize-2" class="w-3.5 h-3.5 text-neutral-500"></i>
+                        </div>
+
+                        <!-- Mini Mockup of LKPD Page -->
+                        <div class="bg-white rounded-xl p-6 text-neutral-800 shadow-inner min-h-[350px] flex flex-col justify-between">
+                            <div class="space-y-4">
+                                <div class="text-center border-b-2 border-dashed border-neutral-300 pb-3">
+                                    <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-900">LEMBAR KERJA PESERTA DIDIK (LKPD)</h4>
+                                    <p class="text-[10px] font-bold text-slate-600 mt-1">Mata Pelajaran: IPAS • Kelas IV SD</p>
+                                    <p class="text-[9px] font-medium text-slate-500">Materi: Siklus Air & Pelestarian Lingkungan</p>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 text-[9px] bg-slate-50 p-2 rounded border border-slate-200">
+                                    <div><strong>Nama Siswa:</strong> .............................</div>
+                                    <div><strong>Tanggal:</strong> .............................</div>
+                                    <div class="col-span-2"><strong>Kelompok:</strong> .............................</div>
+                                </div>
+                                <div class="space-y-2">
+                                    <div class="h-2 bg-emerald-600 rounded-full w-1/3"></div>
+                                    <p class="text-[9px] leading-relaxed text-slate-700"><strong>Tujuan:</strong> Mengidentifikasi tahapan siklus air melalui pengamatan dan diskusi kelompok terarah.</p>
+                                    
+                                    <div class="h-2 bg-emerald-600 rounded-full w-1/4 mt-4"></div>
+                                    <p class="text-[9px] font-semibold text-slate-800">Petunjuk Pengerjaan:</p>
+                                    <p class="text-[8px] text-slate-600">1. Amati gambar diagram siklus air di bawah dengan teliti.<br>2. Jawablah pertanyaan kritis berikut ini secara berdiskusi.</p>
+                                </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-3 text-center">
+                                <p class="text-[8px] text-slate-400 font-medium font-mono">Dibuat menggunakan LKPD Generator AI</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= MAIN WORKSPACE (DASHBOARD) ================= -->
+        <section id="dashboard-section" class="hidden flex-grow flex transition-all duration-500">
+            
+            <!-- Sidebar Navigation -->
+            <aside id="sidebar" class="w-64 glassmorphism border-r border-neutral-800 flex flex-col justify-between transition-all duration-300 relative shrink-0">
+                <div class="p-4 space-y-6">
+                    <!-- Nav Header / Toggle -->
+                    <div class="flex items-center justify-between">
+                        <span class="sidebar-text text-xs font-semibold text-neutral-400 uppercase tracking-wider">Navigasi Utama</span>
+                        <button onclick="toggleSidebar()" class="p-1.5 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-all">
+                            <i data-lucide="menu" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+
+                    <!-- Menu List -->
+                    <nav class="space-y-1.5">
+                        <button onclick="switchTab('tab-generate')" class="tab-btn w-full px-4 py-3 rounded-xl flex items-center gap-3 font-semibold text-sm transition-all duration-200 bg-emerald-950/60 text-emerald-400 border border-emerald-500/20" data-tab="tab-generate">
+                            <i data-lucide="file-plus-2" class="w-5 h-5 shrink-0"></i>
+                            <span class="sidebar-text">Buat LKPD Baru</span>
+                        </button>
+                        <button onclick="switchTab('tab-history')" class="tab-btn w-full px-4 py-3 rounded-xl flex items-center gap-3 font-semibold text-sm text-neutral-400 hover:bg-neutral-900 hover:text-white border border-transparent transition-all duration-200" data-tab="tab-history">
+                            <i data-lucide="history" class="w-5 h-5 shrink-0"></i>
+                            <span class="sidebar-text">Riwayat Pembuatan</span>
+                        </button>
+                        <button onclick="switchTab('tab-guide')" class="tab-btn w-full px-4 py-3 rounded-xl flex items-center gap-3 font-semibold text-sm text-neutral-400 hover:bg-neutral-900 hover:text-white border border-transparent transition-all duration-200" data-tab="tab-guide">
+                            <i data-lucide="book-open" class="w-5 h-5 shrink-0"></i>
+                            <span class="sidebar-text">Panduan Penggunaan</span>
+                        </button>
+                        <button onclick="switchTab('tab-about')" class="tab-btn w-full px-4 py-3 rounded-xl flex items-center gap-3 font-semibold text-sm text-neutral-400 hover:bg-neutral-900 hover:text-white border border-transparent transition-all duration-200" data-tab="tab-about">
+                            <i data-lucide="info" class="w-5 h-5 shrink-0"></i>
+                            <span class="sidebar-text">Tentang Aplikasi</span>
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Sidebar Footer Status -->
+                <div class="p-4 border-t border-neutral-800 space-y-4">
+                    <div class="sidebar-text bg-neutral-900/50 rounded-xl p-3 border border-neutral-800 text-xs">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span class="font-semibold text-neutral-300">AI Engine Ready</span>
+                        </div>
+                        <p class="text-[10px] text-neutral-500">Gemini 2.5 Flash Preview</p>
+                    </div>
+                    <button onclick="logout()" class="w-full px-4 py-2.5 bg-red-950/20 hover:bg-red-950/40 text-red-400 rounded-xl border border-red-900/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span class="sidebar-text">Keluar Sesi</span>
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Work Area -->
+            <div class="flex-grow p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+                
+                <!-- GREETING HEADER -->
+                <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-neutral-800 pb-6">
+                    <div>
+                        <h2 id="dashboard-greeting" class="text-2xl md:text-3xl font-bold text-white">Selamat Datang, Guru Hebat!</h2>
+                        <p class="text-sm text-neutral-400">Siap merancang materi pembelajaran terbaik Anda hari ini?</p>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs bg-neutral-900 p-2 rounded-xl border border-neutral-800 self-start md:self-auto">
+                        <span class="text-neutral-500">Mode API:</span>
+                        <select id="api-mode-selector" class="bg-transparent text-emerald-400 font-semibold focus:outline-none cursor-pointer">
+                            <option value="vercel" class="bg-neutral-900 text-white">Vercel API (Default)</option>
+                            <option value="direct" class="bg-neutral-900 text-white">Direct Gemini Key (Local)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Tab: GENERATE FORM -->
+                <div id="tab-generate" class="tab-content block space-y-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        
+                        <!-- Configuration Form Column -->
+                        <div class="lg:col-span-5 space-y-6">
+                            <div class="glassmorphism rounded-2xl border border-neutral-800 p-6 space-y-6">
+                                <div class="flex items-center gap-3 pb-4 border-b border-neutral-800">
+                                    <div class="p-2 bg-emerald-950 text-emerald-400 rounded-lg">
+                                        <i data-lucide="settings" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-white text-base">Konfigurasi LKPD</h3>
+                                        <p class="text-xs text-neutral-400">Sesuaikan dengan target kelas & materi Anda</p>
+                                    </div>
+                                </div>
+
+                                <!-- Form inputs -->
+                                <form id="lkpd-form" class="space-y-4" onsubmit="event.preventDefault();">
+                                    
+                                    <!-- Jenjang & Kelas Row -->
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Jenjang</label>
+                                            <select id="form-jenjang" onchange="updateKelasDropdown()" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                                                <option value="SD">SD</option>
+                                                <option value="SMP">SMP</option>
+                                                <option value="SMA">SMA</option>
+                                                <option value="SMK">SMK</option>
+                                                <option value="TK">TK</option>
+                                                <option value="PAUD">PAUD</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Kelas</label>
+                                            <select id="form-kelas" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                                                <!-- Dynamic based on Jenjang -->
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Mata Pelajaran -->
+                                    <div>
+                                        <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Mata Pelajaran</label>
+                                        <input type="text" id="form-mapel" placeholder="Contoh: Ilmu Pengetahuan Alam dan Sosial (IPAS)" required class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors">
+                                    </div>
+
+                                    <!-- Materi Pokok / Topik -->
+                                    <div>
+                                        <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Materi Pokok & Topik</label>
+                                        <input type="text" id="form-materi" placeholder="Contoh: Siklus Air dan Pelestarian Air Bersih" required class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors">
+                                    </div>
+
+                                    <!-- Tujuan Pembelajaran (TP) -->
+                                    <div>
+                                        <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Tujuan Pembelajaran</label>
+                                        <textarea id="form-tujuan" rows="3" placeholder="Siswa mampu mendeskripsikan siklus air dan menganalisis dampak aktivitas manusia..." required class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors resize-none"></textarea>
+                                    </div>
+
+                                    <!-- Model Pembelajaran & Kesulitan -->
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Model Pembelajaran</label>
+                                            <select id="form-model" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                                                <option value="Problem Based Learning (PBL)">Problem Based (PBL)</option>
+                                                <option value="Project Based Learning (PjBL)">Project Based (PjBL)</option>
+                                                <option value="Inquiry Learning">Inquiry</option>
+                                                <option value="Discovery Learning">Discovery</option>
+                                                <option value="Kooperatif">Kooperatif</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Tingkat Kesulitan</label>
+                                            <select id="form-kesulitan" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                                                <option value="Sedang (Rekomendasi)">Sedang</option>
+                                                <option value="Mudah">Mudah</option>
+                                                <option value="Tinggi (HOTS)">Tinggi (HOTS)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Jumlah Soal & Jenis Soal -->
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Jumlah Soal</label>
+                                            <select id="form-jumlah-soal" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                                                <option value="5">5 Soal</option>
+                                                <option value="10" selected>10 Soal</option>
+                                                <option value="15">15 Soal</option>
+                                                <option value="20">20 Soal</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Format Bahasa</label>
+                                            <select id="form-bahasa" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                                                <option value="Bahasa Indonesia">Bahasa Indonesia</option>
+                                                <option value="English">English</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Jenis Soal Checkboxes -->
+                                    <div>
+                                        <label class="block text-xs font-semibold text-neutral-400 mb-2 uppercase">Komposisi Soal Latihan</label>
+                                        <div class="grid grid-cols-2 gap-2 bg-neutral-900/50 p-3 rounded-xl border border-neutral-800 text-xs">
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" checked value="Pilihan Ganda" class="form-jenis-soal rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Pilihan Ganda
+                                            </label>
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" checked value="Essay" class="form-jenis-soal rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Essay / Uraian
+                                            </label>
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" value="Benar / Salah" class="form-jenis-soal rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Benar / Salah
+                                            </label>
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" value="Menjodohkan" class="form-jenis-soal rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Menjodohkan
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Profil Pelajar Pancasila (Multi Select Chips style) -->
+                                    <div>
+                                        <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Profil Pelajar Pancasila (P3)</label>
+                                        <div id="p3-chips-container" class="grid grid-cols-2 gap-2 bg-neutral-900/50 p-3 rounded-xl border border-neutral-800 text-[11px]">
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" value="Bernalar Kritis" checked class="form-p3 rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Bernalar Kritis
+                                            </label>
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" value="Mandiri" checked class="form-p3 rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Mandiri
+                                            </label>
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" value="Kreatif" class="form-p3 rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Kreatif
+                                            </label>
+                                            <label class="flex items-center gap-2 text-neutral-300 cursor-pointer">
+                                                <input type="checkbox" value="Gotong Royong" class="form-p3 rounded bg-neutral-900 border-neutral-800 text-emerald-500 focus:ring-emerald-500">
+                                                Gotong Royong
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Instruksi Tambahan -->
+                                    <div>
+                                        <label class="block text-xs font-semibold text-neutral-400 mb-1.5 uppercase">Instruksi Khusus ke AI (Opsional)</label>
+                                        <textarea id="form-instruksi" rows="2" placeholder="Contoh: Tambahkan studi kasus lokal tentang banjir di Jakarta atau buat bahasa lebih santai..." class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-emerald-500 transition-colors resize-none"></textarea>
+                                    </div>
+
+                                    <!-- Direct API Key input parameter (hidden if vercel mode) -->
+                                    <div id="direct-key-container" class="hidden">
+                                        <label class="block text-xs font-semibold text-red-400 mb-1.5 uppercase">Direct Gemini API Key</label>
+                                        <input type="password" id="direct-api-key" placeholder="AIzaSy..." class="w-full bg-red-950/20 border border-red-900/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 transition-colors">
+                                        <p class="text-[9px] text-neutral-500 mt-1">Hanya disimpan di browser Anda untuk keperluan eksekusi langsung.</p>
+                                    </div>
+
+                                    <!-- GENERATE BUTTON -->
+                                    <button type="button" onclick="generateLKPD()" class="w-full mt-4 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-950/40 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3">
+                                        <i data-lucide="wand-2" class="w-5 h-5 animate-pulse"></i>
+                                        Buat LKPD dengan AI
+                                    </button>
+
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Preview Panel Column -->
+                        <div class="lg:col-span-7 space-y-6">
+                            <div class="glassmorphism rounded-2xl border border-neutral-800 p-6 flex flex-col min-h-[600px] justify-between">
+                                
+                                <!-- Document actions panel (Hidden or shown dynamically) -->
+                                <div class="flex items-center justify-between pb-4 border-b border-neutral-800 mb-6">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-3.5 h-3.5 bg-emerald-500 rounded-full"></div>
+                                        <h3 class="font-bold text-white text-base">Pratinjau Hasil (A4)</h3>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="downloadWordDocument()" id="download-btn" disabled class="px-4 py-2 bg-emerald-600/50 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <i data-lucide="download" class="w-4 h-4"></i> Download (.docx)
+                                        </button>
+                                        <button onclick="printPreview()" id="print-btn" disabled class="p-2 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white rounded-xl border border-neutral-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed" title="Cetak / PDF">
+                                            <i data-lucide="printer" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Actual preview document inside white sheet -->
+                                <div class="flex-grow overflow-y-auto max-h-[700px] p-2 bg-neutral-950 rounded-xl flex justify-center border border-neutral-900">
+                                    <div id="empty-state-preview" class="flex flex-col items-center justify-center text-center p-12 max-w-sm my-auto">
+                                        <div class="w-16 h-16 bg-neutral-900 border border-neutral-800 text-neutral-500 rounded-2xl flex items-center justify-center mb-4">
+                                            <i data-lucide="file-text" class="w-8 h-8"></i>
+                                        </div>
+                                        <h4 class="font-bold text-white mb-2">Sistem Siap Digunakan</h4>
+                                        <p class="text-xs text-neutral-400">Silakan konfigurasikan lembar kerja di samping kiri lalu klik tombol "Buat LKPD dengan AI" untuk mulai menyusun.</p>
+                                    </div>
+
+                                    <!-- Rendered document space -->
+                                    <div id="rendered-document" class="hidden w-full overflow-x-auto p-4">
+                                        <div class="word-preview-container" id="word-paper-target">
+                                            <!-- Dynamic raw HTML content will render here -->
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Note under doc preview -->
+                                <div class="mt-4 pt-4 border-t border-neutral-800 flex justify-between items-center text-xs text-neutral-500">
+                                    <span>Skala Pratinjau: Auto Fit (A4)</span>
+                                    <span>Gunakan mode unduhan untuk format Word presisi tinggi.</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Tab: HISTORY -->
+                <div id="tab-history" class="tab-content hidden space-y-6">
+                    <div class="glassmorphism rounded-2xl border border-neutral-800 p-6">
+                        <div class="flex items-center justify-between pb-4 border-b border-neutral-800 mb-6">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-emerald-950 text-emerald-400 rounded-lg">
+                                    <i data-lucide="history" class="w-5 h-5"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-white text-base">Riwayat Pembuatan LKPD</h3>
+                                    <p class="text-xs text-neutral-400">Semua berkas yang Anda rancang disimpan di peramban lokal secara aman</p>
+                                </div>
+                            </div>
+                            <button onclick="clearAllHistory()" class="px-3.5 py-2 bg-red-950/20 hover:bg-red-950/40 text-red-400 hover:text-red-300 text-xs font-semibold border border-red-900/30 rounded-xl transition-all flex items-center gap-2">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i> Hapus Semua Riwayat
+                            </button>
+                        </div>
+
+                        <!-- Empty state history -->
+                        <div id="empty-state-history" class="hidden flex-col items-center justify-center py-16 text-center">
+                            <i data-lucide="history" class="w-12 h-12 text-neutral-600 mb-3"></i>
+                            <p class="text-neutral-400 font-medium">Belum ada riwayat pembuatan LKPD.</p>
+                            <button onclick="switchTab('tab-generate')" class="text-xs text-accent-green hover:underline mt-2">Mulai buat dokumen pertamamu!</button>
+                        </div>
+
+                        <!-- History Cards Grid -->
+                        <div id="history-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Dynamic cards load here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: GUIDE -->
+                <div id="tab-guide" class="tab-content hidden space-y-6">
+                    <div class="glassmorphism rounded-2xl border border-neutral-800 p-6 space-y-6">
+                        <div class="flex items-center gap-3 pb-4 border-b border-neutral-800">
+                            <div class="p-2 bg-emerald-950 text-emerald-400 rounded-lg">
+                                <i data-lucide="book-open" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-white text-base">Panduan Penggunaan Aplikasi</h3>
+                                <p class="text-xs text-neutral-400">Cara mudah melahirkan Lembar Kerja Siswa berkualitas premium dalam sekejap</p>
+                            </div>
+                        </div>
+
+                        <!-- Guide Timeline -->
+                        <div class="space-y-6 max-w-3xl">
+                            <div class="flex gap-4">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-8 h-8 rounded-full bg-emerald-900 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-500/30">1</div>
+                                    <div class="w-0.5 h-full bg-neutral-800 my-1"></div>
+                                </div>
+                                <div class="space-y-1">
+                                    <h4 class="font-bold text-white">Masukkan Informasi & Parameter Inti</h4>
+                                    <p class="text-sm text-neutral-400 leading-relaxed">Isikan dengan lengkap biodata target kelas, mata pelajaran, materi pokok yang dibahas, serta target pencapaian atau Tujuan Pembelajaran (TP). Makin detil TP yang dimasukkan, hasil AI akan semakin tajam.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-8 h-8 rounded-full bg-emerald-900 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-500/30">2</div>
+                                    <div class="w-0.5 h-full bg-neutral-800 my-1"></div>
+                                </div>
+                                <div class="space-y-1">
+                                    <h4 class="font-bold text-white">Pilih Komposisi Soal & P3</h4>
+                                    <p class="text-sm text-neutral-400 leading-relaxed">Tentukan jenis soal yang diinginkan (Pilihan Ganda, Isian, maupun HOTS Essay) beserta dimensi karakter Profil Pelajar Pancasila (misal: Gotong Royong, Bernalar Kritis) agar LKPD relevan dengan Kurikulum Merdeka.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-8 h-8 rounded-full bg-emerald-900 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-500/30">3</div>
+                                    <div class="w-0.5 h-full bg-neutral-800 my-1"></div>
+                                </div>
+                                <div class="space-y-1">
+                                    <h4 class="font-bold text-white">Lakukan Kustomisasi & Instruksi Khusus</h4>
+                                    <p class="text-sm text-neutral-400 leading-relaxed">Gunakan kotak input instruksi khusus untuk mengontrol gaya bahasa AI. Anda dapat menyuruh AI menambahkan studi kasus lingkungan, skenario lab sederhana, atau permainan kelompok di dalam modul LKPD.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4">
+                                <div class="flex flex-col items-center">
+                                    <div class="w-8 h-8 rounded-full bg-emerald-900 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0 border border-emerald-500/30">4</div>
+                                </div>
+                                <div class="space-y-1">
+                                    <h4 class="font-bold text-white">Unduh Dokumen Word (.docx) & Cetak</h4>
+                                    <p class="text-sm text-neutral-400 leading-relaxed">Setelah berkas selesai digenerasi, tinjau di panel pratinjau. Klik tombol <strong>Download (.docx)</strong> untuk menyimpannya sebagai file Word agar mudah diedit ulang oleh Anda menggunakan Microsoft Word atau Google Docs.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: ABOUT -->
+                <div id="tab-about" class="tab-content hidden space-y-6">
+                    <div class="glassmorphism rounded-2xl border border-neutral-800 p-6 space-y-6">
+                        <div class="flex items-center gap-3 pb-4 border-b border-neutral-800">
+                            <div class="p-2 bg-emerald-950 text-emerald-400 rounded-lg">
+                                <i data-lucide="info" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-white text-base">Tentang LKPD Generator AI</h3>
+                                <p class="text-xs text-neutral-400">Teknologi asisten pengajar berdaya kecerdasan buatan super</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 max-w-3xl text-sm text-neutral-300 leading-relaxed">
+                            <p>
+                                <strong>LKPD Generator AI</strong> dikembangkan untuk mempermudah ekosistem pendidikan di Indonesia. Pembuatan Lembar Kerja Siswa konvensional seringkali memakan waktu berjam-jam bahkan berhari-hari. Aplikasi web instan ini hadir sebagai kawan kolaboratif bagi para pendidik cerdas dalam merancang LKPD yang terstruktur, menarik, interaktif, dan akuntabel secara pedagogis.
+                            </p>
+                            <p>
+                                Menggunakan teknologi fondasi **Gemini 2.5 Flash Preview** yang dioptimalkan untuk memproses bahasa instruksional kurikulum pendidikan modern secara natural, logis, dan kaya akan studi kasus lokal.
+                            </p>
+                            <p class="text-neutral-500">
+                                Versi Aplikasi: v2.1.0-Beta • Dikembangkan untuk kelancaran pembelajaran digital guru di seluruh nusantara.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="w-full border-t border-neutral-900 py-6 px-6 glassmorphism text-center text-xs text-neutral-500 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <p>© 2026 LKPD Generator AI - Kurikulum Merdeka. Hak Cipta Dilindungi.</p>
+            <div class="flex items-center gap-4">
+                <a href="#" class="hover:text-emerald-400 transition-colors">Syarat Ketentuan</a>
+                <a href="#" class="hover:text-emerald-400 transition-colors">Kebijakan Privasi</a>
+                <a href="#" class="hover:text-emerald-400 transition-colors">Bantuan Guru</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ================= MODERN MODAL: LOGIN ================= -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md hidden transition-opacity duration-300">
+        <div class="w-full max-w-md glassmorphism border border-neutral-800 rounded-3xl p-6 md:p-8 space-y-6 shadow-2xl relative">
+            <button onclick="closeLoginModal()" class="absolute top-5 right-5 p-1.5 hover:bg-neutral-800 rounded-xl text-neutral-400 hover:text-white transition-all">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <!-- Modal Header -->
+            <div class="text-center space-y-2">
+                <div class="mx-auto w-12 h-12 bg-gradient-to-tr from-emerald-600 to-green-400 p-2.5 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-950/20 mb-2">
+                    <i data-lucide="lock" class="text-white w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white">Akses Pendidik</h3>
+                <p class="text-xs text-neutral-400">Masukkan kode otentikasi khusus untuk masuk ke dasbor</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4" onsubmit="handleLoginSubmit(event)">
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-neutral-400 mb-1 uppercase">Nama Lengkap & Gelar</label>
+                    <input type="text" id="login-name" required placeholder="Contoh: Budi Santoso, S.Pd." class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-neutral-400 mb-1 uppercase">Email Aktif</label>
+                    <input type="email" id="login-email" required placeholder="budi@sekolah.sch.id" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-neutral-400 mb-1 uppercase">Kode Akses Lisensi</label>
+                    <input type="password" id="login-code" required placeholder="Masukkan kode lisensi" class="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors">
+                    <div class="flex justify-between items-center pt-1">
+                        <span class="text-[10px] text-neutral-500">Gunakan kode demo: <strong class="text-emerald-500 font-mono select-all">AIGENLKPD21</strong></span>
+                    </div>
+                </div>
+
+                <!-- Error Notice inside Login -->
+                <div id="login-error" class="hidden bg-red-950/40 border border-red-500/30 rounded-xl p-3 text-xs text-red-400 flex items-center gap-2.5">
+                    <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                    <p id="login-error-text">Kode akses yang dimasukkan salah!</p>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-green-400 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-900/20">
+                    Masuk Dasbor
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= FULLSCREEN LOADING MODAL ================= -->
+    <div id="loading-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md hidden transition-opacity duration-300">
+        <div class="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+            <!-- Spinner -->
+            <div class="relative w-24 h-24 mx-auto flex items-center justify-center">
+                <div class="absolute inset-0 border-4 border-emerald-900/50 rounded-full"></div>
+                <div class="absolute inset-0 border-4 border-t-emerald-500 border-r-emerald-500 rounded-full animate-spin"></div>
+                <i data-lucide="brain-circuit" class="w-10 h-10 text-emerald-400 animate-pulse"></i>
+            </div>
+
+            <!-- Loader Title -->
+            <div class="space-y-2">
+                <h3 class="text-lg font-bold text-white">AI sedang menyusun LKPD...</h3>
+                <p id="loading-tip" class="text-xs text-neutral-400 animate-custom-pulse">Merancang kerangka materi, tujuan instruksional, serta menyusun ragam pertanyaan interaktif.</p>
+            </div>
+
+            <!-- Progress Simulation Bar -->
+            <div class="w-full bg-neutral-950 rounded-full h-1.5 overflow-hidden border border-neutral-800">
+                <div id="loading-progress" class="bg-gradient-to-r from-emerald-500 to-green-400 h-full w-[10%] transition-all duration-300"></div>
+            </div>
+            
+            <div class="text-[10px] text-neutral-500 font-mono tracking-wider">
+                HARAP JANGAN MENUTUP HALAMAN INI
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= ERROR ALERT CARD MODAL ================= -->
+    <div id="error-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md hidden transition-opacity duration-300">
+        <div class="w-full max-w-md bg-neutral-900 border border-red-900/50 rounded-3xl p-8 text-center space-y-6 shadow-2xl">
+            <div class="w-16 h-16 bg-red-950/50 border border-red-500/30 text-red-500 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
+                <i data-lucide="shield-alert" class="w-8 h-8"></i>
+            </div>
+            
+            <div class="space-y-2">
+                <h3 class="text-lg font-bold text-white">Gagal Membuat LKPD</h3>
+                <p id="error-overlay-message" class="text-xs text-neutral-400 leading-relaxed">Terjadi kegagalan komunikasi dengan AI. Mohon periksa koneksi internet Anda atau coba masukkan API Key milik sendiri.</p>
+            </div>
+
+            <div class="flex gap-3">
+                <button onclick="closeErrorOverlay()" class="w-1/2 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold rounded-xl border border-neutral-700 transition-all">
+                    Batal
+                </button>
+                <button id="retry-generate-btn" onclick="retryGeneration()" class="w-1/2 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-xl shadow-lg transition-all">
+                    Coba Lagi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP JAVASCRIPT LOGIC -->
+    <script>
+        // State variables
+        let currentUser = null;
+        let lastGeneratedLKPD = null;
+        let historyList = [];
+        let sidebarCollapsed = false;
+
+        // Valid demo key
+        const DEMO_ACCESS_CODE = "AIGENLKPD21";
+
+        // Loading simulation tips
+        const LOADING_TIPS = [
+            "Meneliti standard capaian pembelajaran sesuai jenjang...",
+            "Merumuskan tantangan kognitif HOTS untuk peserta didik...",
+            "Memadukan dimensi karakter Profil Pelajar Pancasila...",
+            "Menyusun rubrik penilaian dan kisi-kisi jawaban terbaik...",
+            "Menyelesaikan layout pratinjau agar siap dicetak..."
+        ];
+
+        // Class dynamically populated based on level
+        const KELAS_MAP = {
+            "PAUD": ["Kelompok A", "Kelompok B"],
+            "TK": ["TK A (Usia 4-5)", "TK B (Usia 5-6)"],
+            "SD": ["Kelas I", "Kelas II", "Kelas III", "Kelas IV", "Kelas V", "Kelas VI"],
+            "SMP": ["Kelas VII", "Kelas VIII", "Kelas IX"],
+            "SMA": ["Kelas X", "Kelas XI", "Kelas XII"],
+            "SMK": ["Kelas X", "Kelas XI", "Kelas XII", "Kelas XIII"]
+        };
+
+        // On document load
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initializeApp();
+        });
+
+        function initializeApp() {
+            // Restore session
+            const storedUser = localStorage.getItem('lkpd_user');
+            const storedHistory = localStorage.getItem('lkpd_history');
+            const storedLastDoc = localStorage.getItem('lkpd_last_doc');
+
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+                updateNavbarAndGreeting();
+                showSection('dashboard-section');
+                document.getElementById('nav-login-btn').classList.add('hidden');
+                document.getElementById('nav-user-profile').classList.remove('hidden');
+            } else {
+                showSection('landing-section');
+            }
+
+            if (storedHistory) {
+                historyList = JSON.parse(storedHistory);
+            }
+
+            if (storedLastDoc) {
+                lastGeneratedLKPD = JSON.parse(storedLastDoc);
+                renderLKPDToPaper(lastGeneratedLKPD);
+            }
+
+            updateKelasDropdown();
+            loadHistory();
+
+            // API Selector Change Listener
+            document.getElementById('api-mode-selector').addEventListener('change', (e) => {
+                const directKeyContainer = document.getElementById('direct-key-container');
+                if (e.target.value === 'direct') {
+                    directKeyContainer.classList.remove('hidden');
+                } else {
+                    directKeyContainer.classList.add('hidden');
+                }
+            });
+        }
+
+        // NAVIGATION LOGIC
+        function showSection(sectionId) {
+            document.getElementById('landing-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.add('hidden');
+            
+            document.getElementById(sectionId).classList.remove('hidden');
+        }
+
+        function switchTab(tabId) {
+            // Hide all tab contents
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(t => t.classList.add('hidden'));
+
+            // Show target
+            document.getElementById(tabId).classList.remove('hidden');
+
+            // Deactivate all sidebar buttons
+            const btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(b => {
+                b.classList.remove('bg-emerald-950/60', 'text-emerald-400', 'border-emerald-500/20');
+                b.classList.add('text-neutral-400', 'border-transparent');
+            });
+
+            // Activate current sidebar btn
+            const activeBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-neutral-400', 'border-transparent');
+                activeBtn.classList.add('bg-emerald-950/60', 'text-emerald-400', 'border-emerald-500/20');
+            }
+        }
+
+        function goToHome() {
+            if (currentUser) {
+                showSection('dashboard-section');
+                switchTab('tab-generate');
+            } else {
+                showSection('landing-section');
+            }
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const texts = document.querySelectorAll('.sidebar-text');
+            
+            if (sidebarCollapsed) {
+                sidebar.classList.remove('w-20');
+                sidebar.classList.add('w-64');
+                texts.forEach(t => t.style.display = 'block');
+                sidebarCollapsed = false;
+            } else {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-20');
+                texts.forEach(t => t.style.display = 'none');
+                sidebarCollapsed = true;
+            }
+        }
+
+        // LEVEL TO CLASS DROPDOWN MAPPER
+        function updateKelasDropdown() {
+            const jenjang = document.getElementById('form-jenjang').value;
+            const kelasSelector = document.getElementById('form-kelas');
+            kelasSelector.innerHTML = '';
+
+            const availableKelas = KELAS_MAP[jenjang] || [];
+            availableKelas.forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.innerText = k;
+                kelasSelector.appendChild(opt);
+            });
+        }
+
+        // AUTH SYSTEM
+        function openLoginModal() {
+            document.getElementById('login-modal').classList.remove('hidden');
+        }
+
+        function closeLoginModal() {
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+        }
+
+        function handleLoginSubmit(e) {
+            e.preventDefault();
+            const name = document.getElementById('login-name').value;
+            const email = document.getElementById('login-email').value;
+            const code = document.getElementById('login-code').value.trim();
+
+            if (code !== DEMO_ACCESS_CODE) {
+                document.getElementById('login-error-text').innerText = "Kode Akses lisensi tidak valid!";
+                document.getElementById('login-error').classList.remove('hidden');
+                return;
+            }
+
+            // Success
+            currentUser = { name, email };
+            localStorage.setItem('lkpd_user', JSON.stringify(currentUser));
+            
+            updateNavbarAndGreeting();
+            closeLoginModal();
+            showSection('dashboard-section');
+
+            // Toggle navbar buttons
+            document.getElementById('nav-login-btn').classList.add('hidden');
+            document.getElementById('nav-user-profile').classList.remove('hidden');
+        }
+
+        function logout() {
+            localStorage.removeItem('lkpd_user');
+            currentUser = null;
+            
+            // Toggle navbar buttons back
+            document.getElementById('nav-login-btn').classList.remove('hidden');
+            document.getElementById('nav-user-profile').classList.add('hidden');
+
+            showSection('landing-section');
+        }
+
+        function updateNavbarAndGreeting() {
+            if (currentUser) {
+                document.getElementById('user-display-name').innerText = currentUser.name;
+                document.getElementById('user-display-email').innerText = currentUser.email;
+                document.getElementById('dashboard-greeting').innerText = `Selamat Datang, ${currentUser.name.split(',')[0]}!`;
+            }
+        }
+
+        // LOADING OVERLAY CONTROLLER
+        let loadInterval = null;
+        function showLoading() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const progress = document.getElementById('loading-progress');
+            const tipText = document.getElementById('loading-tip');
+            
+            loadingOverlay.classList.remove('hidden');
+            progress.style.width = '10%';
+
+            let currentWidth = 10;
+            let tipIndex = 0;
+
+            loadInterval = setInterval(() => {
+                // Tip rotations
+                if (currentWidth % 25 === 0) {
+                    tipIndex = (tipIndex + 1) % LOADING_TIPS.length;
+                    tipText.innerText = LOADING_TIPS[tipIndex];
+                }
+
+                // Simulate slowing down progress
+                if (currentWidth < 90) {
+                    currentWidth += Math.floor(Math.random() * 8) + 2;
+                    progress.style.width = `${currentWidth}%`;
+                }
+            }, 600);
+        }
+
+        function hideLoading() {
+            clearInterval(loadInterval);
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        function showErrorOverlay(message) {
+            document.getElementById('error-overlay-message').innerText = message;
+            document.getElementById('error-overlay').classList.remove('hidden');
+        }
+
+        function closeErrorOverlay() {
+            document.getElementById('error-overlay').classList.add('hidden');
+        }
+
+        // GENERATE LKPD LOGIC (API & BACKEND WRAPPER)
+        async function generateLKPD() {
+            // Validate Form
+            const form = document.getElementById('lkpd-form');
+            if (!form.reportValidity()) {
+                return;
+            }
+
+            const jenjang = document.getElementById('form-jenjang').value;
+            const kelas = document.getElementById('form-kelas').value;
+            const mapel = document.getElementById('form-mapel').value;
+            const materi = document.getElementById('form-materi').value;
+            const tujuan = document.getElementById('form-tujuan').value;
+            const model = document.getElementById('form-model').value;
+            const kesulitan = document.getElementById('form-kesulitan').value;
+            const jumlahSoal = document.getElementById('form-jumlah-soal').value;
+            const bahasa = document.getElementById('form-bahasa').value;
+            const instruksi = document.getElementById('form-instruksi').value;
+
+            // Collect formats
+            const formatChecks = document.querySelectorAll('.form-jenis-soal:checked');
+            const formats = Array.from(formatChecks).map(el => el.value);
+            if (formats.length === 0) {
+                alert("Harap pilih minimal satu jenis soal latihan!");
+                return;
+            }
+
+            // Collect Pancasila values
+            const p3Checks = document.querySelectorAll('.form-p3:checked');
+            const p3List = Array.from(p3Checks).map(el => el.value);
+
+            // Construct form object
+            const formData = {
+                jenjang, kelas, mapel, materi, tujuan, model, kesulitan,
+                jumlahSoal, bahasa, instruksi, formats, p3List
+            };
+
+            showLoading();
+
+            try {
+                const apiMode = document.getElementById('api-mode-selector').value;
+                let generatedResult = null;
+
+                if (apiMode === 'direct') {
+                    // Direct Browser Call to Gemini
+                    const localKey = document.getElementById('direct-api-key').value.trim();
+                    if (!localKey) {
+                        throw new Error("API Key lokal kosong! Harap masukkan Gemini API Key di isian yang telah disediakan.");
+                    }
+                    generatedResult = await fetchGeminiDirect(localKey, formData);
+                } else {
+                    // Call serverless Vercel API
+                    generatedResult = await fetchVercelAPI(formData);
+                }
+
+                if (!generatedResult || !generatedResult.lkpd_html) {
+                    throw new Error("Gagal menerima format dokumen valid dari AI. Silakan ulangi.");
+                }
+
+                // Process success
+                lastGeneratedLKPD = {
+                    id: Date.now().toString(),
+                    date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                    mapel: mapel,
+                    materi: materi,
+                    kelas: kelas,
+                    jenjang: jenjang,
+                    html: generatedResult.lkpd_html,
+                    raw_structured: generatedResult // Simpan struktur asli untuk ekspor Word yang lebih mantap
+                };
+
+                // Store state
+                localStorage.setItem('lkpd_last_doc', JSON.stringify(lastGeneratedLKPD));
+                saveHistory(lastGeneratedLKPD);
+
+                // Render
+                renderLKPDToPaper(lastGeneratedLKPD);
+                hideLoading();
+
+            } catch (err) {
+                hideLoading();
+                showErrorOverlay(err.message || "Gagal menghubungkan ke layanan AI. Silakan periksa kembali parameter Anda.");
+            }
+        }
+
+        // Retry helper
+        function retryGeneration() {
+            closeErrorOverlay();
+            generateLKPD();
+        }
+
+        // API Caller 1: Call Vercel Serverless Route `/api/generate`
+        async function fetchVercelAPI(formData) {
+            // Kita lakukan panggilan POST ke backend
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Error Server Backend (${response.status})`);
+            }
+
+            return await response.json();
+        }
+
+        // API Caller 2: Direct browser call (Fallback & Developer mode)
+        async function fetchGeminiDirect(apiKey, data) {
+            const prompt = constructLKPDSystemPrompt(data);
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                lkpd_html: { type: "STRING" },
+                                metadata: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        title: { type: "STRING" },
+                                        target_grade: { type: "STRING" },
+                                        model: { type: "STRING" }
+                                    },
+                                    required: ["title"]
+                                },
+                                section_sections: {
+                                    type: "ARRAY",
+                                    items: {
+                                        type: "OBJECT",
+                                        properties: {
+                                            title: { type: "STRING" },
+                                            body: { type: "STRING" }
+                                        }
+                                    }
+                                }
+                            },
+                            required: ["lkpd_html"]
+                        }
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`API Gemini Error: ${response.statusText}`);
+            }
+
+            const json = await response.json();
+            const textResponse = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!textResponse) {
+                throw new Error("Format respons Gemini API kosong!");
+            }
+
+            return JSON.parse(textResponse);
+        }
+
+        // Dynamic System Prompt Construction
+        function constructLKPDSystemPrompt(data) {
+            return `Anda adalah dosen ahli kurikulum modern & pengajar profesional Indonesia. Tugas Anda adalah merancang dokumen Lembar Kerja Peserta Didik (LKPD) yang memiliki format tampilan profesional setara dengan dokumen instansi formal Microsoft Word.
+            
+Dokumen LKPD harus disesuaikan dengan parameter berikut:
+- Jenjang: ${data.jenjang}
+- Kelas: ${data.kelas}
+- Mata Pelajaran: ${data.mapel}
+- Materi Pokok & Topik: ${data.materi}
+- Tujuan Pembelajaran: ${data.tujuan}
+- Model Pembelajaran: ${data.model}
+- Tingkat Kesulitan: ${data.kesulitan}
+- Estimasi Jumlah Soal: ${data.jumlahSoal} soal
+- Format Bahasa: ${data.bahasa}
+- Profil Pelajar Pancasila: ${data.p3List.join(', ')}
+- Format Soal Latihan yang Diinginkan: ${data.formats.join(', ')}
+- Instruksi Tambahan Khusus: ${data.instruksi || 'None'}
+
+LKPD yang dihasilkan HARUS memiliki format HTML yang terstruktur, rapi, bersih, dan indah, tanpa tag script, tanpa CSS eksternal (hanya gunakan inline styling dasar jika mutlak diperlukan), dan siap dimasukkan ke dalam elemen visual perwakilan kertas putih A4 di browser.
+
+Struktur LKPD yang harus Anda hasilkan dalam format HTML di dalam parameter 'lkpd_html' adalah:
+1. HEADER / KOP RESMI: Berisi tulisan "LEMBAR KERJA PESERTA DIDIK (LKPD)", Nama Sekolah/Instansi (kosongkan titik-titik), Nama Mata Pelajaran, Jenjang/Kelas, Tema/Materi Pokok.
+2. IDENTITAS SISWA BOX: Kolom Nama Siswa, Nomor Absen, Hari/Tanggal, Kelompok (buat berupa garis titik-titik rapi agar mudah diisi secara manual dengan pulpen).
+3. MATERI PENGANTAR: Berikan ringkasan materi/teori singkat sekitar 2-3 paragraf padat, jelas, mendalam, dan relevan dengan materi ${data.materi}.
+4. TUJUAN & AKTIVITAS UTAMA: Langkah kerja berbasis model pembelajaran ${data.model} yang melibatkan aktivitas eksplorasi siswa.
+5. SOAL LATIHAN / EVALUASI: Berisi ${data.jumlahSoal} butir soal pilihan yang menantang dan sesuai dengan jenis soal pilihan (${data.formats.join(', ')}).
+6. KOLOM REFLEKSI & PENILAIAN GURU: Kolom komentar guru, tanda tangan orang tua, tanda tangan guru, dan skor/nilai siswa.
+
+PENTING: Seluruh tulisan dilarang menggunakan format markdown (\`#\` atau \`**\`). Hasil akhir 'lkpd_html' harus murni berupa tag HTML lengkap terstruktur (misal: <h2>, <p>, <ul>, <ol>, <table>) yang ramah dibaca dan diimplementasi. Pastikan juga bahwa Anda mengembalikan schema JSON yang valid.`;
+        }
+
+        // RENDER LKPD TO PREVIEW PAPER
+        function renderLKPDToPaper(lkpdObj) {
+            if (!lkpdObj) return;
+
+            const paperTarget = document.getElementById('word-paper-target');
+            const emptyState = document.getElementById('empty-state-preview');
+            const renderedDoc = document.getElementById('rendered-document');
+            
+            // Toggle visibility
+            emptyState.classList.add('hidden');
+            renderedDoc.classList.remove('hidden');
+
+            // Inject HTML safely
+            paperTarget.innerHTML = lkpdObj.html;
+
+            // Enable buttons
+            document.getElementById('download-btn').removeAttribute('disabled');
+            document.getElementById('download-btn').classList.remove('bg-emerald-600/50');
+            document.getElementById('download-btn').classList.add('bg-emerald-600');
+            
+            document.getElementById('print-btn').removeAttribute('disabled');
+        }
+
+        // PRINT PREVIEW WINDOW (CONVERT TO PDF DIRECTLY)
+        function printPreview() {
+            if (!lastGeneratedLKPD) return;
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Cetak - LKPD ${lastGeneratedLKPD.mapel}</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <style>
+                        body {
+                            font-family: 'Inter', sans-serif;
+                            background-color: #ffffff;
+                            color: #000000;
+                            padding: 20mm;
+                            margin: 0;
+                        }
+                        .word-preview-container {
+                            width: 100%;
+                            max-width: 100%;
+                            padding: 0;
+                            box-shadow: none;
+                        }
+                        @media print {
+                            body {
+                                padding: 0;
+                            }
+                            @page {
+                                size: A4;
+                                margin: 20mm;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="word-preview-container">
+                        ${lastGeneratedLKPD.html}
+                    </div>
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                        }
+                    <\/script>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        // EXPORT TO DOCX (WORD) via docx.js library (Highly formatted)
+        function downloadWordDocument() {
+            if (!lastGeneratedLKPD) return;
+
+            // Memanfaatkan html parser sederhana untuk mengubah html preview ke dalam paragraph docx.js
+            const doc = new docx.Document({
+                sections: [{
+                    properties: {},
+                    children: [
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "LEMBAR KERJA PESERTA DIDIK (LKPD)",
+                                    bold: true,
+                                    size: 32,
+                                    color: "000000"
+                                })
+                            ],
+                            alignment: docx.AlignmentType.CENTER,
+                            spacing: { after: 120 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: `Mata Pelajaran: ${lastGeneratedLKPD.mapel} | Kelas: ${lastGeneratedLKPD.kelas} ${lastGeneratedLKPD.jenjang}`,
+                                    bold: true,
+                                    size: 22
+                                })
+                            ],
+                            alignment: docx.AlignmentType.CENTER,
+                            spacing: { after: 240 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: `Materi Utama: ${lastGeneratedLKPD.materi}`,
+                                    bold: true,
+                                    size: 20
+                                })
+                            ],
+                            alignment: docx.AlignmentType.CENTER,
+                            spacing: { after: 480 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "Nama Siswa : .............................................       Hari/Tanggal : ...................................",
+                                    size: 20
+                                })
+                            ],
+                            spacing: { after: 240 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "Nomor Absen: .............................................       Kelompok     : ...................................",
+                                    size: 20
+                                })
+                            ],
+                            spacing: { after: 480 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "----------------------------------------------------------------------------------------------------",
+                                    color: "888888"
+                                })
+                            ],
+                            spacing: { after: 240 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "INSTRUKSI DAN MATERI:",
+                                    bold: true,
+                                    size: 24,
+                                    color: "059669"
+                                })
+                            ],
+                            spacing: { after: 240 }
+                        }),
+                        new docx.Paragraph({
+                            children: [
+                                new docx.TextRun({
+                                    text: "Silakan periksa lembar pratinjau utama di aplikasi atau kembangkan dari format mentah di bawah ini untuk mengedit soal.",
+                                    italic: true,
+                                    size: 18
+                                })
+                            ],
+                            spacing: { after: 240 }
+                        })
+                    ]
+                }]
+            });
+
+            docx.Packer.toBlob(doc).then(blob => {
+                const cleanName = lastGeneratedLKPD.mapel.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                saveAs(blob, `LKPD_${cleanName}_${lastGeneratedLKPD.kelas}.docx`);
+            });
+        }
+
+        // STORAGE & HISTORY CONTROLLERS
+        function saveHistory(lkpd) {
+            // Check if exists
+            const existsIdx = historyList.findIndex(h => h.id === lkpd.id);
+            if (existsIdx > -1) {
+                historyList[existsIdx] = lkpd;
+            } else {
+                historyList.unshift(lkpd); // Add to beginning
+            }
+
+            localStorage.setItem('lkpd_history', JSON.stringify(historyList));
+            loadHistory();
+        }
+
+        function loadHistory() {
+            const grid = document.getElementById('history-grid');
+            const emptyState = document.getElementById('empty-state-history');
+            grid.innerHTML = '';
+
+            if (historyList.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+
+            historyList.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-neutral-900 border border-neutral-800 rounded-2xl p-5 space-y-4 hover:border-emerald-500/30 transition-all duration-300 relative overflow-hidden group";
+                
+                card.innerHTML = `
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-emerald-600"></div>
+                    <div class="space-y-1 pl-2">
+                        <span class="text-[10px] text-emerald-400 font-bold tracking-widest uppercase">${item.kelas} ${item.jenjang}</span>
+                        <h4 class="font-bold text-white text-base truncate pr-6">${item.mapel}</h4>
+                        <p class="text-xs text-neutral-400 truncate">${item.materi}</p>
+                        <p class="text-[10px] text-neutral-500 pt-2 flex items-center gap-1.5">
+                            <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Dibuat: ${item.date}
+                        </p>
+                    </div>
+
+                    <div class="flex gap-2 pl-2 pt-2">
+                        <button onclick="openHistoryItem('${item.id}')" class="px-3 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 text-xs font-semibold rounded-lg border border-emerald-900/30 transition-all flex items-center gap-1.5">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Buka
+                        </button>
+                        <button onclick="deleteHistoryItem('${item.id}', event)" class="p-1.5 bg-red-950/20 hover:bg-red-950/40 text-red-400 hover:text-red-300 rounded-lg border border-red-900/30 transition-all" title="Hapus">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+
+            lucide.createIcons();
+        }
+
+        function openHistoryItem(id) {
+            const item = historyList.find(h => h.id === id);
+            if (item) {
+                lastGeneratedLKPD = item;
+                localStorage.setItem('lkpd_last_doc', JSON.stringify(item));
+                renderLKPDToPaper(item);
+                switchTab('tab-generate');
+            }
+        }
+
+        function deleteHistoryItem(id, event) {
+            event.stopPropagation();
+            historyList = historyList.filter(h => h.id !== id);
+            localStorage.setItem('lkpd_history', JSON.stringify(historyList));
+            loadHistory();
+        }
+
+        function clearAllHistory() {
+            if (confirm("Apakah Anda yakin ingin menghapus seluruh riwayat pembuatan LKPD?")) {
+                historyList = [];
+                localStorage.removeItem('lkpd_history');
+                loadHistory();
+            }
+        }
+    </script>
+</body>
+</html>
